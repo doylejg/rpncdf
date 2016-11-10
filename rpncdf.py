@@ -7,6 +7,9 @@ Program designed to convert EC3 proprietary standard format to NetCDF
 import rpnpy.librmn.all as rmn
 import copy
 
+import datetime
+
+
 import numpy as np
 
 from scipy.io import netcdf
