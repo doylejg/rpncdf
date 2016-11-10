@@ -143,8 +143,7 @@ def _create_netcdf(nfname,data):
 
     nf.createDimension('time',1)
     nf.createVariable('datetime', 'int32', ('time',))
-    nf.variables['datetime'][:] = time.mktime(data['datetime'].astype(\
-                                            datetime.datetime).timetuple())
+    nf.variables['datetime'][:] = time.mktime(data['datetime'].timetuple())
     nf.variables['datetime'].units = 's'
     nf.variables['datetime'].long_name = 'Epoch Unix Time Stamp (s)'
     
