@@ -85,10 +85,14 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         data = copy.deepcopy(odict)
 
     if nf and type(nf)==str:
-        nf = _create_netcdf(nf,
-                           {'datetime':_get_var(funit,'datetime'),
-                            'lon':_get_var(funit,'^^'),
-                            'lat':_get_var(funit,'>>') })
+
+        ladate = datetime.datetime.strptime(os.path.basename(fname),
+                                            'm%Y%m%d%H_???')
+        ladate += datetime.timedelta(seconds=fname.split('_')[-1]*60*60)
+        
+        nf = _create_netcdf(nf, {'datetime':ladate,
+                                 'lat':_get_var(funit,'^^'),
+                                 'lon':_get_var(funit,'>>') })
         
     for var in data.keys():
            
