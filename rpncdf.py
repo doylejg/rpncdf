@@ -134,7 +134,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
 def _create_netcdf(nfname,data):
     
     # Create netcdf
-    nf = netcdf.netcdf_file(filename+'.nc','w')
+    nf = netcdf.netcdf_file(nfname+'.nc','w')
     nf.history = 'Created on %s by %s'%(datetime.datetime.now().isoformat(),
                                         os.environ['USER'])
     
