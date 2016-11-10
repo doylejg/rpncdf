@@ -85,7 +85,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         data = copy.deepcopy(odict)
 
     if nf and type(nf)==str:
-        nf = _create_netcdf(nfname,
+        nf = _create_netcdf(nf,
                            {'datetime':_get_var(funit,'datetime'),
                             'lon':_get_var(funit,'^^'),
                             'lat':_get_var(funit,'>>') })
