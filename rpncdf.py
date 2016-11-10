@@ -9,7 +9,7 @@ import rpnpy.librmn.all as rmn
 import copy
 import os
 
-import datetime
+import datetime,time
 
 
 import numpy as np
