@@ -93,7 +93,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
 
         ladate = datetime.datetime.strptime( \
                         os.path.basename(fname).split('_')[0],'m%Y%m%d%H')
-        ladate += datetime.timedelta(seconds=fname.split('_')[-1]*60*60)
+        ladate += datetime.timedelta(seconds=int(fname.split('_')[-1])*60*60)
         
         nf = _create_netcdf(nf, {'datetime':ladate,
                                  'lat':_get_var(funit,'^^'),
