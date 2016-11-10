@@ -5,6 +5,7 @@ Program designed to convert EC3 proprietary standard format to NetCDF
 """
 
 import rpnpy.librmn.all as rmn
+import copy
 
 import numpy as np
 
@@ -35,12 +36,75 @@ def read_odict(fname='o.dict',skip_footer=22):
     
     return {o[0]:{'long_name':o[1], 'units':o[2]} for o in out}
 
+def check_vars(odict,fname=None,funit=None):
+    """
+    Checks standard file for inclusion of variables provided in odict.
+
+    Input:
+    odict (str,dict) - the odict as read by read_odict()
+    fname (str) - path to standard file
+    funit (rmn) - pointer to standard file
+
+    Returns:
+    simplified dictionary, similar to odict
+    """
     
-def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,verbose=False):
+    if type(odict)==str:
+        data = read_odict(fname=odict)
+    elif type(odict)==dict:
+        data = odict.copy()
+        
+    if fname:
+        funit = rmn.fstopenall(fname,rmn.FST_RO)
+    elif funit==None:
+        raise Exception,'fname or funit must be provided'
+
+    return {k:v for k,v in data.items() if rmn.fstinf(funit, nomvar=k)}
+
+def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
+             verbose=False,odict='o.dict'):
     """extract all data from a rpn file"""
+    
     funit = rmn.fstopenall(fname,rmn.FST_RO,verbose=verbose)
-    data = var_list.copy()
-    for var in var_list:
+    if type(odict)==str:
+        data = read_odict(fname=odict)
+    elif type(odict)==dict:
+        data = copy.deepcopy(odict)
+    for var in data.keys():
+        k = rmn.fstinf(funit,
+                       ip1=vlevel,
+                       ip2=forecast_hour,
+                       nomvar=var,
+                       )
+        
+        data[var]['data'] = rmn.fstluk(k)['d']
+        if var=='PR' and fname_prev:
+            funit = rmn.fstopenall(fname_prev,rmn.FST_RO,verbose=verbose)
+            k = rmn.fstinf(funit,
+                           ip1=vlevel,
+                           ip2=forecast_hour,
+                           nomvar=var)
+            data['PR1h'] = {'data':data[var]['data'] - rmn.fstluk(k)['d'],
+                            'long_name':'Hourly accumulated precipitation',
+                            'units':data['PR']['units']}
+        elif var=='RT':
+            data['PR1h'] = {'data':data[var]['data']*3600, # Warning!!!! 1h only
+                            'long_name':'Hourly accumulated precipitation',
+                            'units':data['PR']['units']}
+
+    return data
+
+def process_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
+                 verbose=False,odict='o.dict',nf=None):
+    """extract all data from a rpn file"""
+
+    funit = rmn.fstopenall(fname,rmn.FST_RO,verbose=verbose)
+    if type(odict)==str:
+        data = read_odict(fname=odict)
+    elif type(odict)==dict:
+        data = odict.copy()
+
+    for var in data:
         k = rmn.fstinf(funit,
                        ip1=vlevel,
                        ip2=forecast_hour,
@@ -48,20 +112,83 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,verbose=False):
                        verbose=verbose,
                        )
         try:
-            data[var]['data'] = rmn.fstluk(k)['d']
+            # Extract the data
+            d = rmn.fstluk(k)['d']
+
+            if nf:
+                _addto_netcdf(nf,var,data=d,
+                              units=data[var]['units'],
+                              long_name=data[var]['long_name'])
+            else:
+                data[var]['data'] = d
+            
+                
             if var=='PR' and fname_prev:
+                
                 funit = rmn.fstopenall(fname_last,rmn.FST_RO,verbose=verbose)
-                k = rmn.fstinf(funit,
-                               ip1=vlevel,
-                               ip2=forecast_hour,
-                               nomvar=var,
-                       verbose=verbose,
-                               )
-                data['PR1h'] = {'data':data[var]['data'] - rmn.fstluk(k)['d'],
-                                'desc':data['PR']['desc'],
-                                'units':data['PR']['units']}
+                _k = rmn.fstinf(funit,
+                                ip1=vlevel,
+                                ip2=forecast_hour,
+                                nomvar=var,
+                                verbose=verbose,
+                )
+
+                _d = d - rmn.fstluk(k)['d']
+
+                long_name = 'Hourly accumulated precipitation'
+                
+                if nf:
+                     _addto_netcdf(nf,'PR1h',data=_d,
+                              units=data[var]['units'],
+                                   long_name=long_name)
+                else:
+                    data['PR1h'] = {'data':_d,
+                                    'long_name':long_name,
+                                    'units':data[var]['units']}
+                    
         except TypeError:
             print('variable %s failed to extract'%var)
 
     return data
 
+def create_netcdf(nfname,data):
+    
+    # Create netcdf
+    nf = netcdf.netcdf_file(filename+'.nc','w')
+    nf.history = 'Created on %s by %s'%(datetime.datetime.now().isoformat(),
+                                        os.environ['USER'])
+    
+    nf.datetime = '%s UTC'%data['datetime']
+
+
+    nf.createDimension('time',1)
+    nf.createVariable('datetime', 'int32', ('time',))
+    nf.variables['datetime'][:] = time.mktime(data['datetime'].astype(\
+                                            datetime.datetime).timetuple())
+    nf.variables['datetime'].units = 's'
+    nf.variables['datetime'].long_name = 'Epoch Unix Time Stamp (s)'
+    
+    nf.createDimension('lat',data['lat'].shape[0])
+    nf.createDimension('lon',data['lon'].shape[0])
+    
+    nf.createVariable('lon', 'float', ('lon',))
+    nf.variables['lon'][:] = data['lon']
+    nf.variables['lon'].units = 'degrees'
+
+    nf.createVariable('lat', 'float', ('lat',))
+    nf.variables['lat'][:] = data['lat']
+    nf.variables['lat'].units = 'degrees'
+
+    return nf
+
+def _addto_netcdf(nf,var,data,units,long_name):
+    nf.createVariable(var, 'float', ('lon','lat'))
+    nf.variables[var][:] = data[var]['data']
+    nf.variables[var].units = data[var]['units']
+    nf.variables[var].long_name = data[var]['long_name']
+
+
+if __name__=="__main__":
+
+    
+    pass
