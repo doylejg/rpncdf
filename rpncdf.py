@@ -62,7 +62,7 @@ def check_vars(odict,fname=None,funit=None):
     return {k:v for k,v in data.items() if rmn.fstinf(funit, nomvar=k)}
 
 def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
-             verbose=False,odict='o.dict'):
+             verbose=False,odict='o.dict',nf=None):
     """extract all data from a rpn file"""
     
     funit = rmn.fstopenall(fname,rmn.FST_RO,verbose=verbose)
@@ -70,6 +70,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         data = read_odict(fname=odict)
     elif type(odict)==dict:
         data = copy.deepcopy(odict)
+        
     for var in data.keys():
         k = rmn.fstinf(funit,
                        ip1=vlevel,
@@ -77,7 +78,15 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
                        nomvar=var,
                        )
         
-        data[var]['data'] = rmn.fstluk(k)['d']
+        d = rmn.fstluk(k)['d']
+        
+        if nf:
+            _addto_netcdf(nf,var,data=d,
+                          units=data[var]['units'],
+                          long_name=data[var]['long_name'])
+        else:
+            data[var]['data'] = d
+        
         if var=='PR' and fname_prev:
             funit = rmn.fstopenall(fname_prev,rmn.FST_RO,verbose=verbose)
             k = rmn.fstinf(funit,
@@ -92,6 +101,13 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
                             'long_name':'Hourly accumulated precipitation',
                             'units':data['PR']['units']}
 
+        if 'PR1h' in data and nf:
+            _addto_netcdf(nf,var,
+                          data=data['PR1h']['data'],
+                          units=data['PR1h']['units'],
+                          long_name=data['PR1h']['long_name'])
+            
+            
     return data
 
 def process_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
