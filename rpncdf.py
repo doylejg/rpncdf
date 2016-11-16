@@ -75,12 +75,15 @@ def _get_var(funit,var,vlevel=-1,forecast_hour=-1):
                    ip1=vlevel,
                    ip2=forecast_hour,
                    nomvar=var )
-        
-    return rmn.fstluk(k)['d']
+    try:
+        return rmn.fstluk(k)['d']
+    except TypeError:
+        print 'data for %s not found'%var
+        return None
 
 
 def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
-             verbose=False,odict='o.dict',nf=None):
+             verbose=False,odict='o.dict',nf=None,checkvars=True):
     """extract all data from a rpn file"""
     
     funit = rmn.fstopenall(fname,rmn.FST_RO,verbose=verbose)
@@ -89,6 +92,11 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
     elif type(odict)==dict:
         data = copy.deepcopy(odict)
 
+    if checkvars:
+        data = check_vars(odict,funit=funit)
+
+    if nf == True:
+        nf = fname
     if nf and type(nf)==str:
 
         ladate = datetime.datetime.strptime( \
@@ -96,19 +104,29 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         ladate += datetime.timedelta(seconds=int(fname.split('_')[-1])*60*60)
         
         nf = _create_netcdf(nf, {'datetime':ladate,
-                                 'lat':_get_var(funit,'^^'),
-                                 'lon':_get_var(funit,'>>') })
+                                 'lat':_get_var(funit,'^^')[0,:],
+                                 'lon':_get_var(funit,'>>'),
+                                 })
+        data.pop('!!')
+        data.pop('^^')
+        data.pop('>>')
         
     for var in data.keys():
            
         d = _get_var(funit,var)
         
         if nf:
+            #try:
             _addto_netcdf(nf,var,data=d,
                           units=data[var]['units'],
                           long_name=data[var]['long_name'])
-        else:
-            data[var]['data'] = d
+            #except IndexError:
+            #    import pdb;pdb.set_trace()
+            #    _addto_netcdf(nf,var,data=d[0,:],
+            #                  units=data[var]['units'],
+            #                  long_name=data[var]['long_name'])
+
+        data[var]['data'] = d
         
         if var=='PR' and fname_prev:
             _funit = rmn.fstopenall(fname_prev,rmn.FST_RO,verbose=verbose)
@@ -126,8 +144,10 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
                           data=data['PR1h']['data'],
                           units=data['PR1h']['units'],
                           long_name=data['PR1h']['long_name'])
-            
-            
+
+    if nf:
+        nf.close()
+        
     return data
 
 
@@ -160,11 +180,12 @@ def _create_netcdf(nfname,data):
 
     return nf
 
+
 def _addto_netcdf(nf,var,data,units,long_name):
     nf.createVariable(var, 'float', ('lon','lat'))
-    nf.variables[var][:] = data[var]['data']
-    nf.variables[var].units = data[var]['units']
-    nf.variables[var].long_name = data[var]['long_name']
+    nf.variables[var][:] = data
+    nf.variables[var].units = units
+    nf.variables[var].long_name = long_name
 
 
 if __name__=="__main__":
