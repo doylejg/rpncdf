@@ -69,14 +69,17 @@ def check_vars(odict,fname=None,funit=None):
     return {k:v for k,v in data.items() if rmn.fstinf(funit, nomvar=k)}
 
 
-def _get_var(funit,var,vlevel=-1,forecast_hour=-1):
+def _get_var(funit,var):#,vlevel=-1,forecast_hour=-1):
     
-    k = rmn.fstinf(funit,
-                   ip1=vlevel,
-                   ip2=forecast_hour,
-                   nomvar=var )
+    # k = rmn.fstinf(funit,
+    #                ip1=vlevel,
+    #                ip2=forecast_hour,
+    #                nomvar=var )
+    # try:
+    #     return rmn.fstluk(k)['d']
     try:
-        return rmn.fstluk(k)['d']
+        return rmn.fstlir(funit, nomvar=var, dtype=np.float32)
+
     except TypeError:
         print 'data for %s not found'%var
         return None
@@ -94,7 +97,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
 
     if checkvars:
         data = check_vars(odict,funit=funit)
-
+        
     if nf == True:
         nf = fname
     if nf and type(nf)==str:
@@ -103,21 +106,43 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
                         os.path.basename(fname).split('_')[0],'m%Y%m%d%H')
         ladate += datetime.timedelta(seconds=int(fname.split('_')[-1])*60*60)
         
-        nf = _create_netcdf(nf, {'datetime':ladate,
-                                 'lat':_get_var(funit,'^^')[0,:],
-                                 'lon':_get_var(funit,'>>'),
-                                 })
-        data.pop('!!')
-        data.pop('^^')
-        data.pop('>>')
+        nf = _create_netcdf(nf, ladate)
+
+        # deal with lat/lon
+        _create_dimension(nf,'lat',dim_size=_get_var(funit,'^^').shape[0])
+        _create_dimension(nf,'lon',dim_size=_get_var(funit,'>>').shape[0])
         
+         
     for var in data.keys():
            
-        d = _get_var(funit,var)
+        rec = _get_var(funit,var)
         
+        data[var]['data'] = rec['d']
+
+        #get lat/lon
+        if not ('lat' in data and 'lon' in data):
+            
+            rec['iunit'] = funit
+            gridid = rmn.ezqkdef(rec)
+            gridLatLon = rmn.gdll(sst_gridid)
+
+            data['lat'] = {'data':gridLatLon['lat'],
+                           'units':'degrees',
+                           'long_name':'Latitude'}
+            data['lon'] = {'data':gridLatLon['lon'],
+                           'units':'degrees',
+                           'long_name':'Longitude'}
+                        
+            if nf:
+                for dim in ['lat','lon']:
+                    _addto_netcdf(nf,dim,data=data[dim]['data'],
+                                  units=data[dim]['units'],
+                                  long_name=data[dim]['long_name'])
+            
+            
         if nf:
             #try:
-            _addto_netcdf(nf,var,data=d,
+            _addto_netcdf(nf,var,data=data[var]['data'],
                           units=data[var]['units'],
                           long_name=data[var]['long_name'])
             #except IndexError:
@@ -126,8 +151,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
             #                  units=data[var]['units'],
             #                  long_name=data[var]['long_name'])
 
-        data[var]['data'] = d
-        
+                
         if var=='PR' and fname_prev:
             _funit = rmn.fstopenall(fname_prev,rmn.FST_RO,verbose=verbose)
             
@@ -151,41 +175,54 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
     return data
 
 
-def _create_netcdf(nfname,data):
+def _create_netcdf(nfname,dt):
     
     # Create netcdf
     nf = netcdf.netcdf_file(nfname+'.nc','w')
     nf.history = 'Created on %s by %s'%(datetime.datetime.now().isoformat(),
                                         os.environ['USER'])
     
-    nf.datetime = '%s UTC'%data['datetime']
-
+    nf.datetime = '%s UTC'%dt
 
     nf.createDimension('time',1)
     nf.createVariable('datetime', 'int32', ('time',))
-    nf.variables['datetime'][:] = time.mktime(data['datetime'].timetuple())
+    nf.variables['datetime'][:] = time.mktime(dt.timetuple())
     nf.variables['datetime'].units = 's'
     nf.variables['datetime'].long_name = 'Epoch Unix Time Stamp (s)'
-    
-    nf.createDimension('lat',data['lat'].shape[0])
-    nf.createDimension('lon',data['lon'].shape[0])
-    
-    nf.createVariable('lon', 'float', ('lon',))
-    nf.variables['lon'][:] = data['lon']
-    nf.variables['lon'].units = 'degrees'
-
-    nf.createVariable('lat', 'float', ('lat',))
-    nf.variables['lat'][:] = data['lat']
-    nf.variables['lat'].units = 'degrees'
 
     return nf
 
+def _create_dimension(nf,dim_name,dim_size=None,data=None):
+
+    nf.createDimension(dim_name,dim_size or data.shape[0])
+
+def _create_variable(nf,var_name,dims):
+    
+    if type(dims)==str:
+        dims = (dims,)
+    elif not type(dims)==tuple:
+        dims = tuple(dims)
+    else:
+        pass
+    
+    nf.createVariable(var_name, 'float', (dims,))
+
+
+def _insert_data(nf,var_name,data,units='',long_name=''):
+
+    nf.variables[var_name][:] = data
+    nf.variables[var_name].units = units
+    nf.variables[var_name].long_name = None
+
+
 
 def _addto_netcdf(nf,var,data,units,long_name):
-    nf.createVariable(var, 'float', ('lon','lat'))
-    nf.variables[var][:] = data
-    nf.variables[var].units = units
-    nf.variables[var].long_name = long_name
+
+    # WARNING: This only works for 2D lon/lat, this needs to change
+    _create_variable(nf,var,('lon','lat'))
+
+    _insert_data(nf,var,data,units,long_name)
+    
 
 
 if __name__=="__main__":
