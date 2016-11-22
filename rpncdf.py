@@ -15,6 +15,7 @@ import datetime,time
 import numpy as np
 
 from scipy.io import netcdf
+from netCDF4 import Dataset
 
 import re
 
@@ -24,7 +25,10 @@ class FileNotFound(Exception):
     def __str__(self):
         return repr(self.value)
 
-    
+def new_netcdf(*var):
+    #return netcdf.netcdf_file(*var)
+    return Dataset(*var)
+
 def read_odict(fname='o.dict',skip_footer=22):
     
     # From SO: http://stackoverflow.com/a/14693789/5543181 
@@ -37,9 +41,8 @@ def read_odict(fname='o.dict',skip_footer=22):
                         #comments='\x1b[31m', # Removes obsolete vars
                         invalid_raise=False, # This excludes data with 4 columns
                         # This removes the coloring command after an obsolete tag
-                        #converters = {0: lambda s: s.replace('\x1b[0m','')},
+                        #converters = {0: lambda s: s.replace('\x1b[0m','')}, )
                         converters = {0: lambda s: ansi_escape.sub('',s)}, )
-    
     return {o[0]:{'long_name':o[1], 'units':o[2]} for o in out}
 
 
@@ -109,24 +112,21 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         
         nf = _create_netcdf(nf, ladate)
 
-        print 'creating lat/lon'
         # deal with lat/lon
         _create_dimension(nf,'lat',dim_size=_get_var(funit,'^^')['d'].shape[1])
         _create_dimension(nf,'lon',dim_size=_get_var(funit,'>>')['d'].shape[0])
 
-        print nf.dimensions
 
     xkeys = ['!!','^^','>>']
     keys = data.keys()
     for k in xkeys:
         keys.pop(keys.index(k))
     keys.sort()
-    keys.extend(xkeys)
+    #keys.extend(xkeys)
 
     ##################### hack
-    keys.pop(keys.index('!!'))
+    #keys.pop(keys.index('!!'))
 
-    print keys
 
     for var in keys:
            
@@ -134,7 +134,6 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         
         data[var]['data'] = rec['d']
 
-        print var
         #get lat/lon
         if not ('lat' in data and 'lon' in data) and not var in xkeys:
 
@@ -148,8 +147,6 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
             data['lon'] = {'data':gridLatLon['lon'],
                            'units':'degrees',
                            'long_name':'Longitude'}
-            print data['lat']
-                        
             if nf:
                 for dim in ['lat','lon']:
                     _addto_netcdf(nf,dim,data=data[dim]['data'],
@@ -197,14 +194,14 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
 def _create_netcdf(nfname,dt):
     
     # Create netcdf
-    nf = netcdf.netcdf_file(nfname+'.nc','w')
+    nf = new_netcdf(nfname+'.nc','w')
     nf.history = 'Created on %s by %s'%(datetime.datetime.now().isoformat(),
                                         os.environ['USER'])
     
     nf.datetime = '%s UTC'%dt
 
     nf.createDimension('time',1)
-    nf.createVariable('datetime', 'int32', ('time',))
+    nf.createVariable('datetime', 'i', ('time',))
     nf.variables['datetime'][:] = time.mktime(dt.timetuple())
     nf.variables['datetime'].units = 's'
     nf.variables['datetime'].long_name = 'Epoch Unix Time Stamp (s)'
@@ -223,7 +220,7 @@ def _create_variable(nf,var_name,dims):
         dims = tuple(dims)
     else:
         pass
-    
+
     nf.createVariable(var_name, 'float', dims)
 
 
@@ -237,14 +234,12 @@ def _insert_data(nf,var_name,data,units='',long_name=''):
 
 def _addto_netcdf(nf,var,data,units,long_name):
 
-    print var,data.shape
     dimensions = nf.dimensions.items()
 
     dims = []
     for data_len in data.shape:
-        dims.extend([dim for dim,dim_len in dimensions if dim_len==data_len])
+        dims.extend([dim for dim,dim_len in dimensions if dim_len.size==data_len])
 
-    print dims
     # WARNING: This only works for 2D lon/lat, this needs to change
     _create_variable(nf,var,tuple(dims))
 
