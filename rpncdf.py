@@ -30,7 +30,7 @@ def read_odict(fname='o.dict',skip_footer=22):
     # From SO: http://stackoverflow.com/a/14693789/5543181 
     ansi_escape = re.compile(r'\x1b[^m]*m')
     
-    out = np.genfromtxt(fname,dtype='string',
+    out = np.genfromtxt(fname,dtype='str',
                         autostrip=True,
                         delimiter='\t',
                         skip_footer=skip_footer, # Removes VAR list footer
@@ -78,7 +78,7 @@ def _get_var(funit,var):#,vlevel=-1,forecast_hour=-1):
     # try:
     #     return rmn.fstluk(k)['d']
     try:
-        return rmn.fstlir(funit, nomvar=var, dtype=np.float32)
+        return rmn.fstlir(funit, nomvar=var)#, dtype=np.float32)
 
     except TypeError:
         print 'data for %s not found'%var
@@ -100,6 +100,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         
     if nf == True:
         nf = fname
+        
     if nf and type(nf)==str:
 
         ladate = datetime.datetime.strptime( \
@@ -108,23 +109,38 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         
         nf = _create_netcdf(nf, ladate)
 
+        print 'creating lat/lon'
         # deal with lat/lon
-        _create_dimension(nf,'lat',dim_size=_get_var(funit,'^^').shape[0])
-        _create_dimension(nf,'lon',dim_size=_get_var(funit,'>>').shape[0])
-        
-         
-    for var in data.keys():
+        _create_dimension(nf,'lat',dim_size=_get_var(funit,'^^')['d'].shape[1])
+        _create_dimension(nf,'lon',dim_size=_get_var(funit,'>>')['d'].shape[0])
+
+        print nf.dimensions
+
+    xkeys = ['!!','^^','>>']
+    keys = data.keys()
+    for k in xkeys:
+        keys.pop(keys.index(k))
+    keys.sort()
+    keys.extend(xkeys)
+
+    ##################### hack
+    keys.pop(keys.index('!!'))
+
+    print keys
+
+    for var in keys:
            
         rec = _get_var(funit,var)
         
         data[var]['data'] = rec['d']
 
+        print var
         #get lat/lon
-        if not ('lat' in data and 'lon' in data):
-            
+        if not ('lat' in data and 'lon' in data) and not var in xkeys:
+
             rec['iunit'] = funit
             gridid = rmn.ezqkdef(rec)
-            gridLatLon = rmn.gdll(sst_gridid)
+            gridLatLon = rmn.gdll(gridid)
 
             data['lat'] = {'data':gridLatLon['lat'],
                            'units':'degrees',
@@ -132,6 +148,7 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
             data['lon'] = {'data':gridLatLon['lon'],
                            'units':'degrees',
                            'long_name':'Longitude'}
+            print data['lat']
                         
             if nf:
                 for dim in ['lat','lon']:
@@ -156,20 +173,22 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
             _funit = rmn.fstopenall(fname_prev,rmn.FST_RO,verbose=verbose)
             
             data['PR1h'] = {'data':data[var]['data'] - _get_var(_funit,var),
-                            'long_name':'Hourly accumulated precipitation',
+                            'long_name':'Hourly accumulated precipitation (from PR and previous hour)',
                             'units':data['PR']['units']}
         elif var=='RT':
             data['PR1h'] = {'data':data[var]['data']*3600, # Warning!!!! 1h only
-                            'long_name':'Hourly accumulated precipitation',
+                            'long_name':'Hourly accumulated precipitation (from RT)',
                             'units':data['PR']['units']}
 
         if 'PR1h' in data and nf:
-            _addto_netcdf(nf,var,
-                          data=data['PR1h']['data'],
-                          units=data['PR1h']['units'],
-                          long_name=data['PR1h']['long_name'])
+            if not 'PR1h' in nf.variables.keys():
+                _addto_netcdf(nf,'PR1h',
+                              data=data['PR1h']['data'],
+                              units=data['PR1h']['units'],
+                              long_name=data['PR1h']['long_name'])
 
     if nf:
+       # return nf
         nf.close()
         
     return data
@@ -205,27 +224,34 @@ def _create_variable(nf,var_name,dims):
     else:
         pass
     
-    nf.createVariable(var_name, 'float', (dims,))
+    nf.createVariable(var_name, 'float', dims)
 
 
 def _insert_data(nf,var_name,data,units='',long_name=''):
 
     nf.variables[var_name][:] = data
     nf.variables[var_name].units = units
-    nf.variables[var_name].long_name = None
+    nf.variables[var_name].long_name = long_name
 
 
 
 def _addto_netcdf(nf,var,data,units,long_name):
 
+    print var,data.shape
+    dimensions = nf.dimensions.items()
+
+    dims = []
+    for data_len in data.shape:
+        dims.extend([dim for dim,dim_len in dimensions if dim_len==data_len])
+
+    print dims
     # WARNING: This only works for 2D lon/lat, this needs to change
-    _create_variable(nf,var,('lon','lat'))
+    _create_variable(nf,var,tuple(dims))
 
     _insert_data(nf,var,data,units,long_name)
     
 
-
 if __name__=="__main__":
 
-    
-    pass
+    d = get_data('test_data/m2015120600_042',nf=True)
+
