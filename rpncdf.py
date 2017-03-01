@@ -9,6 +9,8 @@ import rpnpy.librmn.all as rmn
 import copy
 import os
 
+PWD = '/home/doyle/git/programs/rpncdf'#os.getcwd()
+
 import datetime,time
 
 
@@ -29,7 +31,7 @@ def new_netcdf(*var):
     #return netcdf.netcdf_file(*var)
     return Dataset(*var)
 
-def read_odict(fname='o.dict',skip_footer=22):
+def read_odict(fname=os.path.join(PWD,'o.dict'),skip_footer=22):
     
     # From SO: http://stackoverflow.com/a/14693789/5543181 
     ansi_escape = re.compile(r'\x1b[^m]*m')
@@ -89,7 +91,7 @@ def _get_var(funit,var):#,vlevel=-1,forecast_hour=-1):
 
 
 def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
-             verbose=False,odict='o.dict',nf=None,checkvars=True):
+             verbose=False,odict=os.path.join(PWD,'o.dict'),nf=None,checkvars=True):
     """extract all data from a rpn file"""
     
     funit = rmn.fstopenall(fname,rmn.FST_RO,verbose=verbose)
@@ -117,10 +119,13 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
         _create_dimension(nf,'lon',dim_size=_get_var(funit,'>>')['d'].shape[0])
 
 
-    xkeys = ['!!','^^','>>']
+    xkeys = ['!!','^^','>>','LA','LO']
     keys = data.keys()
     for k in xkeys:
-        keys.pop(keys.index(k))
+        try:
+            keys.pop(keys.index(k))
+        except ValueError:
+            pass
     keys.sort()
     #keys.extend(xkeys)
 
@@ -151,7 +156,8 @@ def get_data(fname,vlevel=-1,forecast_hour=-1,fname_prev=None,
                 for dim in ['lat','lon']:
                     _addto_netcdf(nf,dim,data=data[dim]['data'],
                                   units=data[dim]['units'],
-                                  long_name=data[dim]['long_name'])
+                                  long_name=data[dim]['long_name'],
+                                  notime=True)
             
             
         if nf:
@@ -200,7 +206,7 @@ def _create_netcdf(nfname,dt):
     
     nf.datetime = '%s UTC'%dt
 
-    nf.createDimension('time',1)
+    nf.createDimension('time',None)
     nf.createVariable('datetime', 'i', ('time',))
     nf.variables['datetime'][:] = time.mktime(dt.timetuple())
     nf.variables['datetime'].units = 's'
@@ -232,21 +238,36 @@ def _insert_data(nf,var_name,data,units='',long_name=''):
 
 
 
-def _addto_netcdf(nf,var,data,units,long_name):
+def _addto_netcdf(nf,var,data,units,long_name,notime=False):
 
     dimensions = nf.dimensions.items()
 
-    dims = []
+    if notime:
+        dims = []
+    else:
+        dims = ['time',]
+        
     for data_len in data.shape:
         dims.extend([dim for dim,dim_len in dimensions if dim_len.size==data_len])
 
     # WARNING: This only works for 2D lon/lat, this needs to change
+    if len(dims)==3:
+        input_data = np.atleast_3d(data.T).T
+    else:
+        input_data = data
+        
     _create_variable(nf,var,tuple(dims))
 
-    _insert_data(nf,var,data,units,long_name)
+    _insert_data(nf,var,input_data,units,long_name)
     
 
 if __name__=="__main__":
 
-    d = get_data('test_data/m2015120600_042',nf=True)
+    import sys
+    import os
+
+    # A shitty hack to convert one file (in place??)
+    fpath = sys.argv[1]
+    nfpath = os.path.basename(fpath) # strip off long path
+    d = get_data(fpath,nf=nfpath)
 
