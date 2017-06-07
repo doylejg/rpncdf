@@ -41,7 +41,7 @@ def read_odict(fname=None,skip_footer=22):
 
     if fname==None:
         fname = pkg_resources.resource_stream(__name__,'o.dict')
-    
+        
     # From SO: http://stackoverflow.com/a/14693789/5543181 
     ansi_escape = re.compile(r'\x1b[^m]*m')
     
