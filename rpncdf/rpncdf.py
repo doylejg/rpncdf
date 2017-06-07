@@ -17,6 +17,7 @@ import os
 import datetime, time
 
 import pkg_resources
+import argparse
 
 import numpy as np
 
@@ -273,22 +274,20 @@ def _addto_netcdf(nf,var,data,units,long_name,notime=False):
     _create_variable(nf,var,tuple(dims))
     _insert_data(nf,var,input_data,units,long_name)
     
-
-if __name__=="__main__":
-
-    import argparse
-
+def main():
+    
     parser = argparse.ArgumentParser(
         description='Convert standard file to NetCDF')
 
     parser.add_argument('infiles',nargs='+',
-                        help='Path to input standard file.')
+                        help='Path to input standard file(s).')
     parser.add_argument('--outfiles',nargs='*',#dest='outfiles',
-                        help='Path to output netcdf file.'\
-                             ' (default same as input)',
+                        help='Path to output netcdf file(s).'\
+                             ' (optional, same as input)',
                         default=None)
     parser.add_argument('--odict',
-                        help='Path to custom o.dict',
+                        help='Path to custom o.dict '\
+                             '(22 line footer is ignored)',
                         default=None)
     parser.add_argument('--fprev',dest='fname_prev',nargs='*',
                         help='Path to previous standard file for calculation '\
@@ -343,3 +342,9 @@ if __name__=="__main__":
               checkvars=args.checkvars) \
      for infile, nfpath, fname_prev in \
      zip(args.infiles, nfpaths,fname_prevs) ]
+
+
+    
+if __name__=="__main__":
+
+    main()
