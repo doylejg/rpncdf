@@ -17,7 +17,7 @@ setup(name='rpncdf',
       author_email='jonathan.g.doyle@gmail.com',
       license='LGPLv3+',
       packages=['rpncdf'],
-      install_requires=['numpy','netCDF4','rpnpy'],
+      install_requires=['numpy','netCDF4'],
       entry_points="""
       [console_scripts]
       rpncdf = rpncdf:main
