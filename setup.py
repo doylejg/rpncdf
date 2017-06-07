@@ -5,13 +5,15 @@ setup(name='rpncdf',
       description='Converts RPN standard files to NetCDF',
       classifiers=[
           'Development Status :: 4 - Beta',
-          'License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
-
-          'Programming Language :: Python :: 2.7+',
+          '
+          License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
+          'Programming Language :: Python :: 2.7',
+          'Programming Language :: Python :: 3',
           'Intended Audience :: Science/Research',
-          'Topic :: :: Linguistic',
+          'Topic :: Scientific/Engineering :: Atmospheric Science'
+
       ],
-      keywords='netcdf rpn gem wrf environmentcanada eccc',
+      keywords='netcdf rpn gem wrf environmentcanada eccc ec',
       url='http://github.com/doylejg/rpncdf',
       author='Jonathan G. Doyle',
       author_email='jonathan.g.doyle@gmail.com',
