@@ -113,8 +113,6 @@ def get_data(fname,fname_prev=None,
     for each key provided in o.dict. If nf is provided, a NetCDF file will be
     created.
     
-  
-
     """
     
     funit = rmn.fstopenall(fname,rmn.FST_RO,verbose=verbose)
@@ -131,16 +129,25 @@ def get_data(fname,fname_prev=None,
         nf = fname
         
     if nf and type(nf)==str:
-
-        ladate = datetime.datetime.strptime( \
-                        os.path.basename(fname).split('_')[0],'m%Y%m%d%H')
-        ladate += datetime.timedelta(seconds=int(fname.split('_')[-1])*60*60)
-        
+        fmts = ['m%Y%m%d%H','%Y%m%d%H']
+        for fmt in fmts:
+            try:
+                ladate = datetime.datetime.strptime( \
+                            os.path.basename(fname).split('_')[0],fmt)
+                ladate += datetime.timedelta(
+                    seconds=int(fname.split('_')[-1])*60*60)
+                notime = False
+                break
+            
+            except ValueError:
+                ladate = None
+                notime = True
+                
         nf = _create_netcdf(nf, ladate)
 
         # deal with lat/lon
-        _create_dimension(nf,'lat',dim_size=_get_var(funit,'^^')['d'].shape[1])
-        _create_dimension(nf,'lon',dim_size=_get_var(funit,'>>')['d'].shape[0])
+        _create_dimension(nf,'lon',dim_size=_get_var(funit,'^^')['d'].shape[1])
+        _create_dimension(nf,'lat',dim_size=_get_var(funit,'>>')['d'].shape[0])
 
 
     xkeys = ['!!','^^','>>','LA','LO']
@@ -185,17 +192,20 @@ def get_data(fname,fname_prev=None,
         if nf:
             _addto_netcdf(nf,var,data=data[var]['data'],
                           units=data[var]['units'],
-                          long_name=data[var]['long_name'])
+                          long_name=data[var]['long_name'],
+                          notime=notime)
                 
         if var=='PR' and fname_prev:
             _funit = rmn.fstopenall(fname_prev,rmn.FST_RO,verbose=verbose)
             
             data['PR1h'] = {'data':data[var]['data']-_get_var(_funit,var)['d'],
-                            'long_name':'Hourly accumulated precipitation (from PR and previous hour)',
+                            'long_name':'Hourly accumulated precipitation '\
+                            '(from PR and previous hour)',
                             'units':data['PR']['units']}
         elif var=='RT':
             data['PR1h'] = {'data':data[var]['data']*3600, # Warning!!!! 1h only
-                            'long_name':'Hourly accumulated precipitation (from RT)',
+                            'long_name':'Hourly accumulated precipitation '\
+                            '(from RT)',
                             'units':data['PR']['units']}
 
         if 'PR1h' in data and nf:
@@ -203,7 +213,8 @@ def get_data(fname,fname_prev=None,
                 _addto_netcdf(nf,'PR1h',
                               data=data['PR1h']['data'],
                               units=data['PR1h']['units'],
-                              long_name=data['PR1h']['long_name'])
+                              long_name=data['PR1h']['long_name'],
+                              notime=notime)
 
     if nf:
         nf.close()
@@ -211,20 +222,21 @@ def get_data(fname,fname_prev=None,
     return data
 
 
-def _create_netcdf(nfname,dt):
+def _create_netcdf(nfname,dt=None):
     
     # Create netcdf
     nf = new_netcdf(nfname,'w')
     nf.history = 'Created on %s by %s'%(datetime.datetime.now().isoformat(),
                                         os.environ['USER'])
-    
-    nf.datetime = '%s UTC'%dt
 
-    nf.createDimension('time',None)
-    nf.createVariable('datetime', 'i', ('time',))
-    nf.variables['datetime'][:] = time.mktime(dt.timetuple())
-    nf.variables['datetime'].units = 's'
-    nf.variables['datetime'].long_name = 'Epoch Unix Time Stamp (s)'
+    if dt:
+        nf.datetime = '%s UTC'%dt
+
+        nf.createDimension('time',None)
+        nf.createVariable('datetime', 'i', ('time',))
+        nf.variables['datetime'][:] = time.mktime(dt.timetuple())
+        nf.variables['datetime'].units = 's'
+        nf.variables['datetime'].long_name = 'Epoch Unix Time Stamp (s)'
 
     return nf
 
@@ -281,7 +293,7 @@ def main():
 
     parser.add_argument('infiles',nargs='+',
                         help='Path to input standard file(s).')
-    parser.add_argument('--outfiles',nargs='*',#dest='outfiles',
+    parser.add_argument('-o','--outfiles',nargs='*',dest='outfiles',
                         help='Path to output netcdf file(s).'\
                              ' (optional, same as input)',
                         default=None)

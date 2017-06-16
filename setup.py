@@ -1,13 +1,13 @@
-from setuptools import setup
+from distutils.core import setup
 
 setup(name='rpncdf',
-      version='0.1',
+      version='0.2',
       description='Converts RPN standard files to NetCDF',
       classifiers=[
           'Development Status :: 4 - Beta',
           'License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
 
-          'Programming Language :: Python :: 2.7+',
+          'Programming Language :: Python :: 2.7',
           'Intended Audience :: Science/Research',
           'Topic :: :: Linguistic',
       ],
