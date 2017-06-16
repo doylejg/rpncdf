@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name='rpncdf',
-      version='0.2',
+      version='0.2.1',
       description='Converts RPN standard files to NetCDF',
       classifiers=[
           'Development Status :: 4 - Beta',
@@ -18,6 +18,7 @@ setup(name='rpncdf',
       author_email='jonathan.g.doyle@gmail.com',
       license='LGPLv3+',
       packages=['rpncdf'],
+      package_data={'rpncdf':['o.dict']},
       install_requires=['numpy','netCDF4'],
       entry_points="""
       [console_scripts]
