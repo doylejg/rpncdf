@@ -166,7 +166,7 @@ def get_data(fname,fname_prev=None,
            
         rec = _get_var(funit,var)
         
-        data[var]['data'] = rec['d']
+        data[var]['data'] = rec['d'].T
 
         #get lat/lon
         if not ('lat' in data and 'lon' in data) and not var in xkeys:
@@ -175,10 +175,10 @@ def get_data(fname,fname_prev=None,
             gridid = rmn.ezqkdef(rec)
             gridLatLon = rmn.gdll(gridid)
 
-            data['lat'] = {'data':gridLatLon['lat'],
+            data['lat'] = {'data':gridLatLon['lat'].T,
                            'units':'degrees',
                            'long_name':'Latitude'}
-            data['lon'] = {'data':gridLatLon['lon'],
+            data['lon'] = {'data':gridLatLon['lon'].T,
                            'units':'degrees',
                            'long_name':'Longitude'}
             if nf:
@@ -198,7 +198,8 @@ def get_data(fname,fname_prev=None,
         if var=='PR' and fname_prev:
             _funit = rmn.fstopenall(fname_prev,rmn.FST_RO,verbose=verbose)
             
-            data['PR1h'] = {'data':data[var]['data']-_get_var(_funit,var)['d'],
+            data['PR1h'] = {'data':data[var]['data'] \
+                            -_get_var(_funit,var)['d'].T,
                             'long_name':'Hourly accumulated precipitation '\
                             '(from PR and previous hour)',
                             'units':data['PR']['units']}
