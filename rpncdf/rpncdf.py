@@ -146,8 +146,8 @@ def get_data(fname,fname_prev=None,
         nf = _create_netcdf(nf, ladate)
 
         # deal with lat/lon
-        _create_dimension(nf,'lon',dim_size=_get_var(funit,'^^')['d'].shape[1])
-        _create_dimension(nf,'lat',dim_size=_get_var(funit,'>>')['d'].shape[0])
+        _create_dimension(nf,'lat',dim_size=_get_var(funit,'^^')['d'].shape[1])
+        _create_dimension(nf,'lon',dim_size=_get_var(funit,'>>')['d'].shape[0])
 
 
     xkeys = ['!!','^^','>>','LA','LO']
