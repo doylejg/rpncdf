@@ -1,6 +1,6 @@
 from distutils.core import setup
 
-exec(open('rpncdf/version.py').read())
+exec(open('rpncdf/_version.py').read())
 
 setup(name='rpncdf',
       version=__version__,
