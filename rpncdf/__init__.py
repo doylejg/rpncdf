@@ -1,3 +1,2 @@
-__version__ = '0.2.2'
-
+from _version import __version__
 from rpncdf import *

@@ -1,7 +1,9 @@
 from distutils.core import setup
 
+exec(open('rpncdf/version.py').read())
+
 setup(name='rpncdf',
-      version='0.2.3',
+      version=__version__,
       description='Converts RPN standard files to NetCDF',
       classifiers=[
           'Development Status :: 4 - Beta',
